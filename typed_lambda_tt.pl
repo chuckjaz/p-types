@@ -333,10 +333,10 @@ type_check(ast(selection(Target, Name), _, type(Type))) >>=
     type_check_selection(Target, Name, Type).
 
 % Reference: (E |- M: T) |- (E |- ref M: Ref T)
-type_check(ast(ref(Target), _, type(Type))) >>=
+type_check(ast(ref(Target), S, type(Type))) >>=
     type_check(Target),
     matches_a(Target, TargetType),
-    matches(Type, ref(TargetType)).
+    matches(Type, ref(TargetType), S).
 
 % Null: (E |- null: Ref T)
 type_check(ast(null, _, type(ref(_)))) >>= !.
@@ -350,12 +350,12 @@ type_check(ast(val(Target), _, type(Type))) >>=
 type_check(ast(nop, _, type(unit))) >>= !.
 
 % Assignment: (E |- N: Ref T, M: T) |- (E |- N := M : Unit)
-type_check(ast(write(Target, Value), _, type(unit))) >>=
+type_check(ast(write(Target, Value), S, type(unit))) >>=
     type_check(Target),
     type_check(Value),
     matches_a(Target, ref(TargetType)),
     matches_a(Value, ValueType),
-    matches(TargetType, ValueType).
+    matches(TargetType, ValueType, S).
 
 % Conditional: (E |- B: Boolean, E |- M:T, E |- N: T) |- (E |- if B then { M } else { N } : T)
 type_check(ast(if(Cond, Then, Else), _, type(Type))) >>=
@@ -387,7 +387,7 @@ projection_check([_|Types], N, S, Type) >>=
     { NN is N - 1 },
     projection_check(Types, NN, S, Type).
 
-type_check_clauses(ast(_, S, _), [], Type) >>=
+type_check_clauses(ast(_, S, _), [], _) >>=
     report(["Expected a clause", S]).
 type_check_clauses(Target, [Clause], Type) >>=
     type_check_clause(Target, Clause, Type).
@@ -440,12 +440,12 @@ type_of_type(ast(tuple(TypeExpressions), _, type(Type)), Type) >>=
 type_of_type(ast(or(TypeExpressions), S, type(Type)), Type) >>=
     type_of_type_l(TypeExpressions, Types),
     matches(Type, or(Types), S).
-type_of_type(ast(record(MembersAst), _, type(Type)), Type) >>=
+type_of_type(ast(record(MembersAst), S, type(Type)), Type) >>=
     type_of_members(MembersAst, Members),
-    matches(Type, record(Members)).
-type_of_type(ast(ref(TypeExpression), _, type(Type)), Type) >>=
+    matches(Type, record(Members), S).
+type_of_type(ast(ref(TypeExpression), S, type(Type)), Type) >>=
     type_of_type(TypeExpression, Target),
-    matches(Type, ref(Target)).
+    matches(Type, ref(Target), S).
 
 type_of_type_l([TypeExpression|TypeExpressions], [Type|Types]) >>=
     type_of_type(TypeExpression, Type),
@@ -548,4 +548,11 @@ tests :-
     test("in[Integer+Boolean](1)", or([int, boolean])),
     test("case in[Integer+Boolean](1) of x: Integer then x else 2", int),
     test("{| x: Integer = 1, y: Integer = 2 |}", record([member("x", int), member("y", int)])),
-    test("{| x: Integer = 1, y: Integer = 2 |}.x", int).
+    test("{| x: Integer = 1, y: Integer = 2 |}.x", int),
+    test("ref 1", ref(int)),
+    test("null", ref(_)),
+    test("val(ref(1))", int),
+    test("nop", unit),
+    test("ref 1 := 2", unit),
+    test("if true then { 1 } else { 2 }", int),
+    test("true; 1", int).
