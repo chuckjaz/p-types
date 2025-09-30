@@ -387,13 +387,16 @@ projection_check([_|Types], N, S, Type) >>=
     { NN is N - 1 },
     projection_check(Types, NN, S, Type).
 
+type_check_clauses(ast(_, S, _), [], Type) >>=
+    report(["Expected a clause", S]).
+type_check_clauses(Target, [Clause], Type) >>=
+    type_check_clause(Target, Clause, Type).
 type_check_clauses(Target, [Clause|Clauses], Type) >>=
     type_check_clause(Target, Clause, Type),
     type_check_clauses(Target, Clauses, Type).
-
 type_check_clause(Target, ast(then(Name, TypeExpression, Body), _, type(BodyType)), Type) >>=
     type_of_type(TypeExpression, NameType),
-    match_or_type_a_a(Target, TypeExpression),
+    match_or_type_a_a(TypeExpression, Target),
     enter(Name, NameType),
     type_check(Body),
     retract,
@@ -457,9 +460,9 @@ type_of_members([], []) >>= !.
 type_of_member(ast(member(Name, TypeExpression), _, type(Type)), member(Name, Type)) >>=
     type_of_type(TypeExpression, Type).
 
-match_or_type_a_a(ast(_, _, type(TargetType)), ast(_, S, type(or(Types)))) >>=
+match_or_type_a_a(ast(_, S, type(TargetType)), ast(_, _, type(or(Types)))) >>=
     match_one_of(TargetType, S, Types).
-match_or_type_a_a(ast(_, S, _), _) >>=
+match_or_type_a_a(_, ast(_, S, _)) >>=
     report(["Expected OR type", S]).
 
 match_one_of(Type, _, [Type|_]) >>= !.
@@ -467,7 +470,7 @@ match_one_of(Type, S, []) >>= report(["Type", Type, "doesn't match any part of t
 
 % Utilities
 
-last_of(ast(_, source(_, E), _), E).
+last_of(ast(_, source(_, E), _), E) :- !.
 last_of_l([ast(_, source(_, E), _)], E).
 last_of_l([_|T], E) :- last_of_l(T, E).
 
@@ -489,11 +492,11 @@ lookup(Name, S, Type, InEnv, InErr, InEnv, OutErr) :- lookup_in(bind(Name, Type)
 
 lookup_type(Name, S, Type, InEnv, InErr, InEnv, OutErr) :- lookup_in(type(Name, Type), S, InEnv, InErr, OutErr).
 
-lookup_in(Binding, _, [Binding|_], InErr, InErr).
+lookup_in(Binding, _, [Binding|_], InErr, InErr) :- !.
 lookup_in(Binding, S, [_|Env], InErr, OutErr) :- lookup_in(Binding, S, Env, InErr, OutErr).
 lookup_in(Binding, S, _, InErr, OutErr) :-
     name_of(Binding, Name),
-    report(["Undefined", Name, S], [], [], InErr, OutErr).
+    report(["Undefined", Name, S], [], [], InErr, OutErr), !.
 
 name_of(bind(Name, _), Name  ).
 name_of(type(Name, _), Name).
@@ -522,7 +525,7 @@ ttc(String) :-
     phrase(expression(Ast), Tokens),
     builtins(Builtins),
     trace,
-    type_check(Ast, Builtins, [], _, Errors), !.
+    type_check(Ast, Builtins, [], _, Errors), write(Ast), write(Errors), !.
 
 test(String, Type) :-
     tc(String, Ast, Errors),
@@ -543,5 +546,6 @@ tests :-
     test("<1, true>.1", int),
     test("<1, true>.2", boolean),
     test("in[Integer+Boolean](1)", or([int, boolean])),
+    test("case in[Integer+Boolean](1) of x: Integer then x else 2", int),
     test("{| x: Integer = 1, y: Integer = 2 |}", record([member("x", int), member("y", int)])),
     test("{| x: Integer = 1, y: Integer = 2 |}.x", int).
